@@ -19,7 +19,7 @@ app.use('/api/products', require('./routes/products'));
 app.use('/api/cart', require('./routes/cart'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/orders', require('./routes/orders'));
-app.use('/api/admin', require('./routes/admin'));
+// app.use('/api/admin', require('./routes/admin'));
 
 
 app.listen(process.env.PORT, () => {

@@ -10,31 +10,72 @@ const router = express.Router();
 // Register
 router.post('/register', async (req, res) => {
     try {
-        console.log("Incoming register body:", req.body); // <-- Add this
-
-        const { name, phone, email, password } = req.body;
+        const { name, phone, email, password, fcmToken } = req.body;
 
         const existingPhone = await User.findOne({ phone });
-        if (existingPhone) {
-            return res.status(400).json({ message: "Phone already registered" });
-        }
+        if (existingPhone) return res.status(400).json({ message: "Phone already registered" });
 
         const existingEmail = await User.findOne({ email });
-        if (existingEmail) {
-            return res.status(400).json({ message: "Email already registered" });
-        }
+        if (existingEmail) return res.status(400).json({ message: "Email already registered" });
 
-        // Hash password
         const hashed = await bcrypt.hash(password, 10);
 
-        const newUser = new User({ name, phone, email, password: hashed, role: "user" });
-        await newUser.save();
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-        res.status(201).json({ message: "User registered successfully" });
+        const user = new User({
+            name,
+            phone,
+            email,
+            password: hashed,
+            role: "user",
+            fcmToken,
+            emailOTP: otp,
+            // emailOTPExpiry: Date.now() + 10 * 60 * 1000, // 10 minutes
+        });
+
+        await user.save();
+
+        await sendEmail(
+            email,
+            "Verify Your Email",
+            `Your verification code is: ${otp}`
+        );
+
+        res.status(201).json({ message: "Registration successful. Please verify your email with the OTP sent." });
+
     } catch (err) {
+        console.error("Register error:", err.message);
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
+
+
+router.post('/verify-email', async (req, res) => {
+    try {
+        const { email, otp } = req.body;
+
+        const user = await User.findOne({ email });
+        if (!user) return res.status(404).json({ message: "User not found" });
+        if (user.isEmailVerified) return res.json({ message: "Email already verified" });
+
+        if (user.emailOTP !== otp) {
+            return res.status(400).json({ message: "Invalid or expired OTP" });
+        }
+
+        user.isEmailVerified = true;
+        user.emailOTP = null;
+        // user.emailOTPExpiry = null;
+        await user.save();
+
+
+        res.json({ message: "Email verified successfully" });
+
+
+    } catch (err) {
+        res.status(500).json({ message: "Verification failed", error: err.message });
+    }
+});
+
 
 // Login
 router.post('/login', async (req, res) => {
@@ -46,7 +87,9 @@ router.post('/login', async (req, res) => {
 
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid email or password" });
-
+        if (!user.isEmailVerified) {
+            return res.status(403).json({ message: "Email not verified. Please verify before logging in." });
+        }
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
         res.json({ token, user: { id: user._id, name: user.name, phone: user.phone, role: user.role }, status: "success" });
