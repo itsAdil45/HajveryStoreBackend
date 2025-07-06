@@ -16,7 +16,8 @@ const seedProducts = async () => {
             image: 'https://picsum.photos/200/300',
             description: 'Fresh red apples',
             stock: 50,
-            category: 'Fruit'
+            category: 'Fruit',
+            brand: 'olper'
         },
         {
             name: 'Milk 1L',
@@ -24,7 +25,8 @@ const seedProducts = async () => {
             image: 'https://picsum.photos/200/300',
             description: 'Dairy milk 1 liter pack',
             stock: 30,
-            category: 'Dairy'
+            category: 'Dairy',
+            brand: 'milk pack'
         },
         {
             name: 'Basmati Rice 5kg',
@@ -32,7 +34,8 @@ const seedProducts = async () => {
             image: 'https://picsum.photos/200/300',
             description: 'Premium basmati rice',
             stock: 20,
-            category: 'Grains'
+            category: 'Grains',
+            brand: 'Nestle'
         }
     ]);
 

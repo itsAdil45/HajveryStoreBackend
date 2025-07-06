@@ -1,22 +1,16 @@
+// middleware/upload.js
 const multer = require('multer');
-const path = require('path');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+const cloudinary = require('../utils/cloudinary');
 
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => cb(null, 'uploads/'),
-    filename: (req, file, cb) => {
-        cb(null, `${Date.now()}-${file.originalname}`);
-    }
+const storage = new CloudinaryStorage({
+    cloudinary,
+    params: {
+        folder: 'hajverystore_receipts',
+        allowed_formats: ['jpg', 'jpeg', 'png'],
+    },
 });
 
-const upload = multer({
-    storage,
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB max
-    fileFilter: (req, file, cb) => {
-        const allowed = /jpeg|jpg|png/;
-        const ext = path.extname(file.originalname).toLowerCase();
-        if (allowed.test(ext)) cb(null, true);
-        else cb(new Error('Only images are allowed'));
-    }
-});
+const upload = multer({ storage });
 
 module.exports = upload;

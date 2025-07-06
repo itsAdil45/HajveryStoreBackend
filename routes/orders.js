@@ -4,6 +4,8 @@ const User = require('../models/User');
 const Order = require('../models/Order');
 const upload = require('../middlewares/upload');
 const router = express.Router();
+const sendNotification = require('../utils/sendNotification');
+
 router.post('/checkout', auth, upload.single('receipt'), async (req, res) => {
     try {
         const { paymentMethod } = req.body;
@@ -30,6 +32,15 @@ router.post('/checkout', auth, upload.single('receipt'), async (req, res) => {
 
         if (paymentMethod === 'online' && !req.file) {
             return res.status(400).json({ message: "Receipt image required for online payment" });
+        }
+        const admin = await User.findOne({ role: 'admin' });
+
+        if (admin && admin.fcmToken) {
+            await sendNotification(
+                admin.fcmToken,
+                "New Order",
+                `Order placed by ${user.name}`
+            );
         }
         res.status(201).json({ message: 'Order placed successfully', order });
     } catch (err) {

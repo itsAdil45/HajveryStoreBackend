@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
     role: { type: String, default: "user" },
     resetOTP: { type: String },
     resetOTPExpiry: { type: Date },
+    fcmToken: { type: String },
     cart: [
         {
             product: {
