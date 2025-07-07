@@ -1,28 +1,42 @@
 const mongoose = require('mongoose');
 
 const VariantSchema = new mongoose.Schema({
-    name: { type: String, required: true }, // e.g., "500ml", "1kg", "Large"
+    name: { type: String, required: true },
     price: { type: Number, required: true },
-    stock: { type: Number, default: 0 }
+    stock: { type: Number, default: 0 },
+    salePrice: { type: Number },
+    saleDuration: {
+        start: { type: Date },
+        end: { type: Date }
+    }
 });
 
 const ProductSchema = new mongoose.Schema({
     name: { type: String, required: true },
     images: {
         type: [String],
+        required: true,
         validate: {
-            validator: function (arr) {
-                return arr.length >= 3;
-            },
+            validator: arr => arr.length >= 3,
             message: "At least 3 images are required."
-        },
-        required: true
+        }
     },
-    price: { type: Number, required: true }, // Default/base price (optional if variants are used)
+    price: { type: Number, required: true }, // Base price
     description: { type: String },
     category: { type: String },
     brand: { type: String },
-    variants: [VariantSchema], // optional: different sizes, weights, etc.
+    variants: [VariantSchema],
+    isOnSale: { type: Boolean, default: false },
+    salePrice: {
+        type: Number,
+        required: function () {
+            return this.isOnSale && (!this.variants || this.variants.length === 0);
+        }
+    },
+    saleDuration: {
+        start: { type: Date },
+        end: { type: Date }
+    }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Product', ProductSchema);
