@@ -23,7 +23,10 @@ const ProductSchema = new mongoose.Schema({
     },
     price: { type: Number, required: true }, // Base price
     description: { type: String },
-    category: { type: String },
+    category: {
+        main: { type: mongoose.Schema.Types.ObjectId, ref: "Category", required: true },
+        sub: { type: String, required: true }
+    },
     brand: { type: String },
     variants: [VariantSchema],
     isOnSale: { type: Boolean, default: false },

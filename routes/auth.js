@@ -10,7 +10,7 @@ const router = express.Router();
 // Register
 router.post('/register', async (req, res) => {
     try {
-        const { name, phone, email, password, fcmToken } = req.body;
+        const { name, phone, email, password, fcmToken, address } = req.body;
 
         const existingPhone = await User.findOne({ phone });
         if (existingPhone) return res.status(400).json({ message: "Phone already registered" });
@@ -20,7 +20,7 @@ router.post('/register', async (req, res) => {
 
         const hashed = await bcrypt.hash(password, 10);
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
         const user = new User({
             name,
@@ -30,6 +30,7 @@ router.post('/register', async (req, res) => {
             role: "user",
             fcmToken,
             emailOTP: otp,
+            address
             // emailOTPExpiry: Date.now() + 10 * 60 * 1000, // 10 minutes
         });
 
@@ -68,7 +69,7 @@ router.post('/verify-email', async (req, res) => {
         await user.save();
 
 
-        res.json({ message: "Email verified successfully" });
+        res.json({ message: "Email verified successfully", status: "success" });
 
 
     } catch (err) {
@@ -88,7 +89,7 @@ router.post('/login', async (req, res) => {
         const isMatch = await bcrypt.compare(password, user.password);
         if (!isMatch) return res.status(400).json({ message: "Invalid email or password" });
         if (!user.isEmailVerified) {
-            return res.status(403).json({ message: "Email not verified. Please verify before logging in." });
+            return res.status(403).json({ message: "Email not verified. Please verify before logging in.", status: 403 });
         }
         const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '7d' });
 
@@ -112,35 +113,48 @@ router.post('/change-password', auth, async (req, res) => {
         user.password = await bcrypt.hash(newPassword, 10);
         await user.save();
 
-        res.json({ message: "Password changed successfully" });
+        res.json({ message: "Password changed successfully", status: "success" });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err.message });
     }
 });
 
-router.post('/request-reset-otp', async (req, res) => {
+router.post('/request-reset-otp/:type', async (req, res) => {
     try {
         const { email } = req.body;
-
+        const { type } = req.params;
+        let statusTxt;
         const user = await User.findOne({ email });
-        if (!user) return res.status(404).json({ message: "User not found" });
+        if (!user) return res.status(404).json({ message: "User not found", status: 403 });
 
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-        user.resetOTP = otp;
-        user.resetOTPExpiry = Date.now() + 1000 * 60 * 10; // 10 minutes
+        const otp = Math.floor(1000 + Math.random() * 9000).toString();
+
+        if (type === "email") {
+            if (user.isEmailVerified) return res.json({ message: "Email already verified" });
+            user.emailOTP = otp;
+            user.emailOTPExpiry = Date.now() + 1000 * 60 * 10; // 10 min expiry
+            statusTxt = "email verification";
+        } else {
+            user.resetOTP = otp;
+            user.resetOTPExpiry = Date.now() + 1000 * 60 * 10; // 10 min expiry
+            statusTxt = "password reset";
+
+        }
+
         await user.save();
 
         await sendEmail(
             user.email,
             "Your OTP Code",
-            `Your OTP code for password reset is: ${otp}`
+            `Your OTP code for ${statusTxt} is: ${otp}`
         );
 
-        res.json({ message: "OTP sent to email" });
+        res.json({ message: "OTP sent to email", status: "success" });
     } catch (err) {
-        res.status(500).json({ message: "Server error", error: err.message });
+        res.status(500).json({ message: "Server error", error: err.message, status: 500 });
     }
 });
+
 
 router.post('/reset-password-otp', async (req, res) => {
     try {
@@ -159,7 +173,7 @@ router.post('/reset-password-otp', async (req, res) => {
         user.resetOTPExpiry = undefined;
         await user.save();
 
-        res.json({ message: "Password reset successful" });
+        res.json({ message: "Password reset successful", status: "success" });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err.message });
     }
