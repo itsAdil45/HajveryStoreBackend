@@ -20,6 +20,7 @@ const sendNotification = async (fcmToken, title, body) => {
         const response = await admin.messaging().send(message);
         console.log("✅ Notification sent:", response);
     } catch (err) {
+        console.log(fcmToken)
         console.error("❌ Error sending FCM notification:", err.message);
     }
 };

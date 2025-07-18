@@ -21,10 +21,10 @@ const UserSchema = new mongoose.Schema({
                 ref: "Product",
                 required: true,
             },
-            quantity: { type: Number, default: 1 }
+            quantity: { type: Number, default: 1, min: 1 },
+            variantName: { type: String, required: true } // Use variant name instead of ID
         }
     ],
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);
-

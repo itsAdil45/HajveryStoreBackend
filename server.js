@@ -20,6 +20,7 @@ app.use('/api/cart', require('./routes/cart'));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/user', require('./routes/user'));
+app.use('/api/categories', require('./routes/categories'));
 
 
 app.listen(process.env.PORT, () => {

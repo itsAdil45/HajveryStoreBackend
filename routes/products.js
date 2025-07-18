@@ -15,9 +15,22 @@ const isAdmin = async (req, res, next) => {
 router.post('/add', auth, isAdmin, upload.array('images', 5), async (req, res) => {
     try {
         const imageUrls = req.files.map(file => file.path);
+
+        // Parse variants if they're sent as JSON string
+        let variants = req.body.variants;
+        if (typeof variants === 'string') {
+            variants = JSON.parse(variants);
+        }
+
         const product = new Product({
             ...req.body,
-            images: imageUrls
+            images: imageUrls,
+            variants: variants || [{
+                name: "Default",
+                price: req.body.price,
+                isOnSale: req.body.isOnSale || false,
+                salePrice: req.body.salePrice
+            }]
         });
 
         await product.save();
@@ -34,14 +47,51 @@ router.put('/update/:id', auth, isAdmin, upload.array('images', 5), async (req, 
 
         const updatedData = { ...req.body };
 
+        // Handle variants - parse if it's a JSON string
+        if (updatedData.variants) {
+            if (typeof updatedData.variants === 'string') {
+                try {
+                    updatedData.variants = JSON.parse(updatedData.variants);
+                } catch (parseErr) {
+                    return res.status(400).json({
+                        message: "Invalid variants format",
+                        error: "Variants must be valid JSON"
+                    });
+                }
+            }
+
+            // Validate variants array
+            if (!Array.isArray(updatedData.variants) || updatedData.variants.length === 0) {
+                return res.status(400).json({
+                    message: "Variants must be a non-empty array"
+                });
+            }
+        }
+
+        // Handle images - only update if new images are provided
         if (req.files && req.files.length > 0) {
             updatedData.images = req.files.map(file => file.path);
         }
 
-        const updated = await Product.findByIdAndUpdate(req.params.id, updatedData, {
-            new: true,
-            runValidators: true
-        });
+        // Handle category updates - ensure proper structure
+        if (req.body['category[main]']) {
+            updatedData.category = {
+                main: req.body['category[main]'],
+                sub: req.body['category[sub]'] || product.category.sub
+            };
+            // Clean up the form-data style keys
+            delete updatedData['category[main]'];
+            delete updatedData['category[sub]'];
+        }
+
+        const updated = await Product.findByIdAndUpdate(
+            req.params.id,
+            updatedData,
+            {
+                new: true,
+                runValidators: true
+            }
+        );
 
         res.json({ message: "Product updated", product: updated });
     } catch (err) {
@@ -68,9 +118,12 @@ router.get('/', async (req, res) => {
     }
 
     if (category) {
-        query.category = category;
+        query['category.sub'] = category;
     }
 
+    // if (mainCategoryId) {
+    //     query['category.main'] = mainCategoryId;
+    // }
     if (brand) {
         query.brand = brand;
     }

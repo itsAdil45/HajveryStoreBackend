@@ -2,6 +2,7 @@ const express = require('express');
 const auth = require('../middlewares/auth');
 const User = require('../models/User');
 const Order = require('../models/Order');
+const Product = require('../models/Product');
 const upload = require('../middlewares/upload');
 const router = express.Router();
 const sendNotification = require('../utils/sendNotification');
@@ -11,16 +12,29 @@ router.post('/checkout', auth, upload.single('receipt'), async (req, res) => {
     try {
         const { paymentMethod } = req.body;
         const user = await User.findById(req.user.id).populate('cart.product');
-
+        console.log(user.email);
         if (!user.cart.length) return res.status(400).json({ message: 'Cart is empty' });
 
-        const total = user.cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
+        const total = user.cart.reduce((sum, item) => {
+            const product = item.product;
+            let price;
+
+            // Find the variant by name
+            const variant = product.variants.find(v => v.name === item.variantName);
+            if (!variant) {
+                throw new Error(`Variant "${item.variantName}" not found for product "${product.name}"`);
+            }
+
+            price = variant.isOnSale ? variant.salePrice : variant.price;
+            return sum + price * item.quantity;
+        }, 0);
 
         const order = new Order({
             user: user._id,
             items: user.cart.map(item => ({
                 product: item.product._id,
-                quantity: item.quantity
+                quantity: item.quantity,
+                variantName: item.variantName // Include variant name
             })),
             total,
             paymentMethod,
@@ -34,6 +48,7 @@ router.post('/checkout', auth, upload.single('receipt'), async (req, res) => {
         if (paymentMethod === 'online' && !req.file) {
             return res.status(400).json({ message: "Receipt image required for online payment" });
         }
+
         const admin = await User.findOne({ role: 'admin' });
 
         if (admin && admin.fcmToken) {
@@ -43,11 +58,13 @@ router.post('/checkout', auth, upload.single('receipt'), async (req, res) => {
                 `Order placed by ${user.name}`
             );
         }
+
         res.status(201).json({ message: 'Order placed successfully', order });
     } catch (err) {
         res.status(500).json({ message: 'Checkout failed', error: err.message });
     }
 });
+
 router.get('/last_report', auth, async (req, res) => {
     try {
         const admin = await User.findById(req.user.id);
@@ -94,6 +111,7 @@ router.get('/last_report', auth, async (req, res) => {
         res.status(500).json({ message: 'Failed to generate report', error: err.message });
     }
 });
+
 router.get('/report', auth, async (req, res) => {
     try {
         const admin = await User.findById(req.user.id);
@@ -115,15 +133,20 @@ router.get('/report', auth, async (req, res) => {
         const orders = await Order.find({
             createdAt: { $gte: fromDate, $lte: toDate }
         })
-            .populate('user', 'name email') // optional
-            .populate('items.product', 'name price');
+            .populate('user', 'name email')
+            .populate('items.product', 'name price variants');
 
-        // Prepare report
+        // Prepare report with variant information
         const report = orders.map(order => ({
             orderID: order._id,
             user: order.user?.name || 'Unknown',
             total: order.total,
-            date: order.createdAt
+            date: order.createdAt,
+            items: order.items.map(item => ({
+                product: item.product.name,
+                variant: item.variantName,
+                quantity: item.quantity
+            }))
         }));
 
         // Total income
@@ -141,8 +164,6 @@ router.get('/report', auth, async (req, res) => {
         res.status(500).json({ message: 'Failed to generate report', error: err.message });
     }
 });
-
-
 
 router.get('/', auth, async (req, res) => {
     const userID = req.user.id;
@@ -167,7 +188,7 @@ router.get('/', auth, async (req, res) => {
 
         let orders = await Order.find(query)
             .populate('user', 'name email')
-            .populate('items.product', 'name price');
+            .populate('items.product', 'name price variants');
 
         // Filter by user name (after population)
         if (userName) {
@@ -182,15 +203,13 @@ router.get('/', auth, async (req, res) => {
     }
 });
 
-
-
 router.get('/my/orders', auth, async (req, res) => {
     try {
         const userID = req.user.id;
 
         const orders = await Order.find({ user: userID })
             .sort({ createdAt: -1 }) // newest first
-            .populate('items.product', 'name price');
+            .populate('items.product', 'name price variants');
 
         res.json(orders);
     } catch (err) {
@@ -198,14 +217,13 @@ router.get('/my/orders', auth, async (req, res) => {
     }
 });
 
-
 router.get('/my/orders/:id', auth, async (req, res) => {
     try {
         const userID = req.user.id;
         const orderID = req.params.id;
 
         const order = await Order.findOne({ _id: orderID, user: userID })
-            .populate('items.product', 'name price');
+            .populate('items.product', 'name price variants');
 
         if (!order) {
             return res.status(404).json({ message: "Order not found or does not belong to you." });
@@ -216,7 +234,6 @@ router.get('/my/orders/:id', auth, async (req, res) => {
         res.status(500).json({ message: 'Failed to fetch the order', error: err.message });
     }
 });
-
 
 router.get('/:id', auth, async (req, res) => {
     const userID = req.user.id;
@@ -229,8 +246,8 @@ router.get('/:id', auth, async (req, res) => {
         }
 
         const order = await Order.findById(orderID)
-            .populate('user', 'name email phone') // adjust fields as needed
-            .populate('items.product', 'name price');
+            .populate('user', 'name email phone')
+            .populate('items.product', 'name price variants');
 
         if (!order) {
             return res.status(404).json({ message: "Order not found." });
