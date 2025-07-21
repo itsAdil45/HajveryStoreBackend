@@ -110,20 +110,20 @@ router.delete('/delete/:id', auth, isAdmin, async (req, res) => {
 // Get all products
 router.get('/', async (req, res) => {
     const { search, category, brand } = req.query;
-
     const query = {};
 
     if (search) {
-        query.name = { $regex: search, $options: 'i' }; // case-insensitive search
+        query.$or = [
+            { name: { $regex: search, $options: 'i' } },
+            { 'category.sub': { $regex: search, $options: 'i' } },
+            { brand: { $regex: search, $options: 'i' } },
+        ];
     }
 
     if (category) {
-        query['category.sub'] = category;
+        query['category.sub'] = { $regex: category, $options: 'i' };
     }
 
-    // if (mainCategoryId) {
-    //     query['category.main'] = mainCategoryId;
-    // }
     if (brand) {
         query.brand = brand;
     }

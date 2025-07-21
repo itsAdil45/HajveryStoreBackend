@@ -11,7 +11,6 @@ const VariantSchema = new mongoose.Schema({
             return this.isOnSale;
         }
     },
-    stock: { type: Number, default: 0 } // Optional: individual variant stock
 }, { _id: false });
 
 // Product Schema

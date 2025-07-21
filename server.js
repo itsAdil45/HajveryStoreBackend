@@ -21,6 +21,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/categories', require('./routes/categories'));
+app.use('/api/campaigns', require('./routes/campaigns'));
 
 
 app.listen(process.env.PORT, () => {

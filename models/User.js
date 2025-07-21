@@ -21,6 +21,7 @@ const UserSchema = new mongoose.Schema({
                 ref: "Product",
                 required: true,
             },
+            deal: { type: mongoose.Schema.Types.ObjectId, ref: "Deal" },
             quantity: { type: Number, default: 1, min: 1 },
             variantName: { type: String, required: true } // Use variant name instead of ID
         }

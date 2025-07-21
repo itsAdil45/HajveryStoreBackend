@@ -7,17 +7,47 @@ const upload = require('../middlewares/upload');
 const router = express.Router();
 const sendNotification = require('../utils/sendNotification');
 const moment = require('moment');
+const mongoose = require('mongoose');
 
 router.post('/checkout', auth, upload.single('receipt'), async (req, res) => {
     try {
-        const { paymentMethod } = req.body;
+        const { paymentMethod, charges = {} } = req.body;
         const user = await User.findById(req.user.id).populate('cart.product');
         console.log(user.email);
-        if (!user.cart.length) return res.status(400).json({ message: 'Cart is empty' });
 
-        const total = user.cart.reduce((sum, item) => {
+        if (!user.cart.length) {
+            return res.status(400).json({ message: 'Cart is empty' });
+        }
+
+        // Validate stock availability before proceeding
+        const stockValidation = [];
+        for (const item of user.cart) {
             const product = item.product;
-            let price;
+
+            // Check if product has sufficient stock
+            if (product.stock < item.quantity) {
+                stockValidation.push({
+                    productName: product.name,
+                    variantName: item.variantName,
+                    requestedQuantity: item.quantity,
+                    availableStock: product.stock
+                });
+            }
+        }
+
+        if (stockValidation.length > 0) {
+            return res.status(400).json({
+                message: 'Insufficient stock for some items',
+                insufficientStock: stockValidation
+            });
+        }
+
+        // Calculate subtotal and prepare order items
+        let subtotal = 0;
+        const orderItems = [];
+
+        for (const item of user.cart) {
+            const product = item.product;
 
             // Find the variant by name
             const variant = product.variants.find(v => v.name === item.variantName);
@@ -25,42 +55,102 @@ router.post('/checkout', auth, upload.single('receipt'), async (req, res) => {
                 throw new Error(`Variant "${item.variantName}" not found for product "${product.name}"`);
             }
 
-            price = variant.isOnSale ? variant.salePrice : variant.price;
-            return sum + price * item.quantity;
-        }, 0);
+            const price = variant.isOnSale ? variant.salePrice : variant.price;
+            const itemTotal = price * item.quantity;
+            subtotal += itemTotal;
 
-        const order = new Order({
-            user: user._id,
-            items: user.cart.map(item => ({
-                product: item.product._id,
+            orderItems.push({
+                product: product._id,
                 quantity: item.quantity,
-                variantName: item.variantName // Include variant name
-            })),
-            total,
-            paymentMethod,
-            paymentReceipt: req.file ? req.file.path : null,
-        });
+                variantName: item.variantName,
+                price: price // Store the price at time of order
+            });
+        }
 
-        await order.save();
-        user.cart = [];
-        await user.save();
+        // Calculate charges
+        const orderCharges = {
+            delivery: parseFloat(charges.delivery) || 0,
+            vat: parseFloat(charges.vat) || 0,
+            other: parseFloat(charges.other) || 0
+        };
+        orderCharges.total = orderCharges.delivery + orderCharges.vat + orderCharges.other;
 
+        // Calculate final total
+        const total = subtotal + orderCharges.total;
+
+        // Validate online payment receipt
         if (paymentMethod === 'online' && !req.file) {
             return res.status(400).json({ message: "Receipt image required for online payment" });
         }
 
-        const admin = await User.findOne({ role: 'admin' });
+        // Start transaction to ensure data consistency
+        const session = await mongoose.startSession();
+        session.startTransaction();
 
-        if (admin && admin.fcmToken) {
-            await sendNotification(
-                admin.fcmToken,
-                "New Order",
-                `Order placed by ${user.name}`
-            );
+        try {
+            // Create order
+            const order = new Order({
+                user: user._id,
+                items: orderItems,
+                subtotal,
+                charges: orderCharges,
+                total,
+                paymentMethod,
+                paymentReceipt: req.file ? req.file.path : null,
+            });
+
+            await order.save({ session });
+
+            // Deduct stock from products
+            for (const item of user.cart) {
+                await Product.findByIdAndUpdate(
+                    item.product._id,
+                    { $inc: { stock: -item.quantity } },
+                    { session }
+                );
+            }
+
+            // Clear user cart
+            user.cart = [];
+            await user.save({ session });
+
+            // Commit transaction
+            await session.commitTransaction();
+
+            // Send notification to admin
+            const admin = await User.findOne({ role: 'admin' });
+            if (admin && admin.fcmToken) {
+                await sendNotification(
+                    admin.fcmToken,
+                    "New Order",
+                    `Order placed by ${user.name} - Total: Rs ${total}`
+                );
+            }
+
+            res.status(201).json({
+                message: 'Order placed successfully',
+                order: {
+                    _id: order._id,
+                    user: user._id,
+                    subtotal,
+                    charges: orderCharges,
+                    total,
+                    paymentMethod,
+                    status: order.status,
+                    createdAt: order.createdAt
+                }
+            });
+
+        } catch (error) {
+            // Rollback transaction on error
+            await session.abortTransaction();
+            throw error;
+        } finally {
+            session.endSession();
         }
 
-        res.status(201).json({ message: 'Order placed successfully', order });
     } catch (err) {
+        console.error('Checkout error:', err);
         res.status(500).json({ message: 'Checkout failed', error: err.message });
     }
 });
