@@ -74,3 +74,5 @@ router.put('/toggle/:id', auth, async (req, res) => {
         res.status(500).json({ message: 'Failed to toggle campaign', error: err.message });
     }
 });
+
+module.exports = router;
