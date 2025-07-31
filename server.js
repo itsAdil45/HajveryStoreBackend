@@ -22,7 +22,7 @@ app.use('/api/orders', require('./routes/orders'));
 app.use('/api/user', require('./routes/user'));
 app.use('/api/categories', require('./routes/categories'));
 app.use('/api/campaigns', require('./routes/campaigns'));
-
+app.use('/api/deals', require('./routes/dealRoutes'));
 
 app.listen(process.env.PORT, () => {
     console.log(`Server running on port ${process.env.PORT}`);
