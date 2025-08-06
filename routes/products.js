@@ -109,7 +109,7 @@ router.delete('/delete/:id', auth, isAdmin, async (req, res) => {
 });
 // Get all products
 router.get('/', async (req, res) => {
-    const { search, category, brand } = req.query;
+    const { search, category, brand, hasActiveSale } = req.query;
     const query = {};
 
     if (search) {
@@ -127,7 +127,10 @@ router.get('/', async (req, res) => {
     if (brand) {
         query.brand = brand;
     }
-
+    if (hasActiveSale === 'true') {
+        query['variants.isOnSale'] = true;
+    }
+    console.log("Query:", query); // Debugging line to check the query
     try {
         const products = await Product.find(query);
         res.json(products);
