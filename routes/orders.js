@@ -402,12 +402,13 @@ router.get('/', auth, async (req, res) => {
             .populate('items.product', 'name price variants')
             .populate('items.deal', 'title discount originalPrice dealPrice');
 
+        console.log(orders);
+        // if (userName) {
+        //     orders = orders.filter(order =>
+        //         order.user?.name?.toLowerCase().includes(userName.toLowerCase())
+        //     );
+        // }
         // Filter by user name (after population)
-        if (userName) {
-            orders = orders.filter(order =>
-                order.user?.name?.toLowerCase().includes(userName.toLowerCase())
-            );
-        }
 
         res.json(orders);
     } catch (err) {
@@ -445,7 +446,7 @@ router.get('/:id', auth, async (req, res) => {
             .populate('user', 'name email phone')
             .populate('items.product', 'name price variants')
             .populate('items.deal', 'title discount originalPrice dealPrice bannerImage')
-            .populate('items.dealProducts.product', 'name images brand');
+            .populate('items.dealProducts.product');
 
         if (!order) {
             return res.status(404).json({ message: "Order not found." });
