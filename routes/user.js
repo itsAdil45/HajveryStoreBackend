@@ -82,11 +82,11 @@ router.get('/profile', auth, async (req, res) => {
 router.put('/update-profile', auth, async (req, res) => {
     try {
         const userID = req.user.id;
-        const { name, phone, address } = req.body;
+        const { name, phone, address, fcmToken } = req.body;
 
         const updatedUser = await User.findByIdAndUpdate(
             userID,
-            { name, phone, address },
+            { name, phone, address, fcmToken },
             { new: true, runValidators: true }
         ).select('-password');
 
