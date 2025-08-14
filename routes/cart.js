@@ -70,7 +70,7 @@ router.post('/add', auth, async (req, res) => {
             const existingItem = user.cart.find(item =>
                 item.itemType === 'product' &&
                 item.product && item.product.toString() === productId &&
-                item.variantName === variantName
+                item.variantNmae === variantName
             );
 
             if (existingItem) {
