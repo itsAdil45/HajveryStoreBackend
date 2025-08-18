@@ -147,5 +147,14 @@ router.post('/daily-message', auth, async (req, res) => {
     }
 });
 
+router.get('/daily-message', async (req, res) => {
+    try {
+        const dailyMessage = await dailyMessageSchema.find();
+        res.status(200).json(dailyMessage);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
 
 module.exports = router;

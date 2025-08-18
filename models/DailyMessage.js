@@ -11,4 +11,4 @@ const dailyMessageSchema = new mongoose.Schema({
     }
 });
 
-module.exports = mongoose.model('dailyMessageSchema', dailyMessageSchema);
+module.exports = mongoose.model('dailyMessage', dailyMessageSchema);
