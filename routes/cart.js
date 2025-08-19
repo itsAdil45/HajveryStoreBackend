@@ -274,11 +274,11 @@ router.patch('/update/:itemId', auth, async (req, res) => {
         }
 
         // Check if it's a deal (deals can't have quantity updated)
-        if (cartItem.itemType === 'deal') {
-            return res.status(400).json({
-                message: 'Deal quantities cannot be updated. Deals are fixed bundles.'
-            });
-        }
+        // if (cartItem.itemType === 'deal') {
+        //     return res.status(400).json({
+        //         message: 'Deal quantities cannot be updated. Deals are fixed bundles.'
+        //     });
+        // }
 
         cartItem.quantity = quantity;
         await user.save();
