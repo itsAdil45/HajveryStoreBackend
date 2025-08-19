@@ -5,20 +5,17 @@ const Deal = require('../models/Deal');
 const User = require('../models/User');
 const router = express.Router();
 
-// Add to cart (supports both products and deals)
 router.post('/add', auth, async (req, res) => {
     try {
         const { productId, dealId, quantity = 1, variantName, itemType } = req.body;
         const userId = req.user.id;
 
-        // Validate item type
         if (!itemType || !['product', 'deal'].includes(itemType)) {
             return res.status(400).json({
                 message: 'Item type must be either "product" or "deal"'
             });
         }
 
-        // Validate input based on item type
         if (itemType === 'product') {
             if (!productId || !variantName) {
                 return res.status(400).json({
@@ -29,12 +26,6 @@ router.post('/add', auth, async (req, res) => {
             if (!dealId) {
                 return res.status(400).json({
                     message: 'Deal ID is required for deals'
-                });
-            }
-            // For deals, quantity should be 1 (you can't have multiple of the same deal bundle)
-            if (quantity !== 1) {
-                return res.status(400).json({
-                    message: 'Deal quantity must be 1'
                 });
             }
         }
@@ -52,7 +43,6 @@ router.post('/add', auth, async (req, res) => {
 
         // Handle product addition
         if (itemType === 'product') {
-            // Check if product exists and has the specified variant
             const product = await Product.findById(productId);
             if (!product) {
                 return res.status(404).json({ message: 'Product not found' });
@@ -70,11 +60,12 @@ router.post('/add', auth, async (req, res) => {
             const existingItem = user.cart.find(item =>
                 item.itemType === 'product' &&
                 item.product && item.product.toString() === productId &&
-                item.variantNmae === variantName
+                item.variantName === variantName
             );
 
             if (existingItem) {
                 existingItem.quantity += quantity;
+                console.log(`Updated existing product in cart: ${existingItem.product}`);
             } else {
                 user.cart.push({
                     product: productId,
@@ -82,6 +73,7 @@ router.post('/add', auth, async (req, res) => {
                     variantName: variantName,
                     itemType: 'product'
                 });
+                console.log(`Added new product to cart: ${productId}`);
             }
         }
 
@@ -110,17 +102,16 @@ router.post('/add', auth, async (req, res) => {
                 item.deal && item.deal.toString() === dealId
             );
 
+
             if (existingDeal) {
-                return res.status(400).json({
-                    message: 'Deal already exists in cart. You can only have one of each deal.'
+                existingDeal.quantity += quantity;
+            } else {
+                user.cart.push({
+                    deal: dealId,
+                    quantity: quantity,
+                    itemType: 'deal'
                 });
             }
-
-            user.cart.push({
-                deal: dealId,
-                quantity: 1,
-                itemType: 'deal'
-            });
         }
 
         await user.save();
