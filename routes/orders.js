@@ -399,7 +399,7 @@ router.get('/', auth, async (req, res) => {
 
         let orders = await Order.find(query)
             .populate('user', 'name email')
-            .populate('items.product', 'name price variants')
+            .populate('items.product', 'name price variants images')
             .populate('items.deal', 'title discount originalPrice dealPrice');
 
         console.log(orders);
