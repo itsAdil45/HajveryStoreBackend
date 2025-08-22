@@ -432,7 +432,7 @@ router.get('/my/orders', auth, async (req, res) => {
 });
 
 
-router.get('/:id', auth, async (req, res) => {
+router.get('/single/:id', auth, async (req, res) => {
     const userID = req.user.id;
     const orderID = req.params.id;
 
