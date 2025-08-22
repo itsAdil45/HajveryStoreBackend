@@ -444,7 +444,7 @@ router.get('/single/:id', auth, async (req, res) => {
 
         const order = await Order.findById(orderID)
             .populate('user', 'name email phone address')
-            .populate('items.product', 'name price variants')
+            .populate('items.product', 'name price variants images')
             .populate('items.deal', 'title discount originalPrice dealPrice bannerImage')
             .populate('items.dealProducts.product');
 
