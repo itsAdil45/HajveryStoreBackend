@@ -7,34 +7,52 @@ const sendEmail = require('../utils/sendEmail');
 
 const router = express.Router();
 
-// Register
 router.post('/register', async (req, res) => {
     try {
         const { name, phone, email, password, fcmToken, address } = req.body;
 
         const existingPhone = await User.findOne({ phone });
-        if (existingPhone) return res.status(400).json({ message: "Phone already registered" });
+        if (existingPhone && existingPhone.isEmailVerified) {
+            return res.status(400).json({ message: "Phone already registered" });
+        }
 
         const existingEmail = await User.findOne({ email });
-        if (existingEmail) return res.status(400).json({ message: "Email already registered" });
+        if (existingEmail && existingEmail.isEmailVerified) {
+            return res.status(400).json({ message: "Email already registered" });
+        }
 
         const hashed = await bcrypt.hash(password, 10);
-
         const otp = Math.floor(1000 + Math.random() * 9000).toString();
 
-        const user = new User({
-            name,
-            phone,
-            email,
-            password: hashed,
-            role: "user",
-            fcmToken,
-            emailOTP: otp,
-            address
-            // emailOTPExpiry: Date.now() + 10 * 60 * 1000, // 10 minutes
-        });
+        if (existingPhone || existingEmail) {
+            const userToUpdate = existingPhone || existingEmail;
 
-        await user.save();
+            userToUpdate.name = name;
+            userToUpdate.phone = phone;
+            userToUpdate.email = email;
+            userToUpdate.password = hashed;
+            userToUpdate.address = address;
+            userToUpdate.fcmToken = fcmToken;
+            userToUpdate.emailOTP = otp;
+            // userToUpdate.emailOTPExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
+
+            await userToUpdate.save();
+        } else {
+            // Create new user
+            const user = new User({
+                name,
+                phone,
+                email,
+                password: hashed,
+                role: "user",
+                fcmToken,
+                emailOTP: otp,
+                // emailOTPExpiry: Date.now() + 10 * 60 * 1000, // 10 minutes
+                address
+            });
+
+            await user.save();
+        }
 
         await sendEmail(
             email,
@@ -42,7 +60,9 @@ router.post('/register', async (req, res) => {
             `Your verification code is: ${otp}`
         );
 
-        res.status(201).json({ message: "Registration successful. Please verify your email with the OTP sent." });
+        res.status(201).json({
+            message: "Registration successful. Please verify your email with the OTP sent."
+        });
 
     } catch (err) {
         console.error("Register error:", err.message);
