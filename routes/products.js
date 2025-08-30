@@ -109,7 +109,7 @@ router.delete('/delete/:id', auth, isAdmin, async (req, res) => {
 });
 // Get all products
 router.get('/', async (req, res) => {
-    const { search, category, brand, hasActiveSale } = req.query;
+    const { search, category, brand, hasActiveSale, page = 1, limit = 10 } = req.query;
     const query = {};
 
     if (search) {
@@ -127,13 +127,52 @@ router.get('/', async (req, res) => {
     if (brand) {
         query.brand = brand;
     }
+
     if (hasActiveSale === 'true') {
         query['variants.isOnSale'] = true;
     }
+
+    // Convert page and limit to numbers and validate
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+
+    // Validate pagination parameters
+    if (pageNum < 1) {
+        return res.status(400).json({ message: 'Page number must be greater than 0' });
+    }
+
+    if (limitNum < 1 || limitNum > 100) {
+        return res.status(400).json({ message: 'Limit must be between 1 and 100' });
+    }
+
+    const skip = (pageNum - 1) * limitNum;
+
     console.log("Query:", query); // Debugging line to check the query
+    console.log("Pagination - Page:", pageNum, "Limit:", limitNum, "Skip:", skip);
+
     try {
-        const products = await Product.find(query);
-        res.json(products);
+        // Get total count for pagination metadata
+        const totalProducts = await Product.countDocuments(query);
+        const totalPages = Math.ceil(totalProducts / limitNum);
+
+        // Get paginated products
+        const products = await Product.find(query)
+            .skip(skip)
+            .limit(limitNum)
+            .lean(); // Use lean() for better performance if you don't need Mongoose document methods
+
+        // Return paginated response with metadata
+        res.json({
+            products,
+            pagination: {
+                currentPage: pageNum,
+                totalPages,
+                totalProducts,
+                hasNextPage: pageNum < totalPages,
+                hasPreviousPage: pageNum > 1,
+                limit: limitNum
+            }
+        });
     } catch (err) {
         res.status(500).json({ message: 'Failed to fetch products', error: err.message });
     }
