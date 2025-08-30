@@ -109,7 +109,7 @@ router.delete('/delete/:id', auth, isAdmin, async (req, res) => {
 });
 // Get all products
 router.get('/', async (req, res) => {
-    const { search, category, brand, hasActiveSale, page = 1, limit = 10 } = req.query;
+    const { search, category, brand, hasActiveSale, page, limit, noPagination = false } = req.query;
     const query = {};
 
     if (search) {
@@ -130,6 +130,37 @@ router.get('/', async (req, res) => {
 
     if (hasActiveSale === 'true') {
         query['variants.isOnSale'] = true;
+    }
+
+    // If no pagination requested, return all products with computed fields
+    if (noPagination || (!page && !limit)) {
+        try {
+            const rawProducts = await Product.find(query).lean();
+
+            // Add all computed fields that frontend expects
+            const products = rawProducts.map(product => {
+                const bestPrice = Math.min(...product.variants.map(v =>
+                    v.isOnSale && v.salePrice ? v.salePrice : v.price
+                ));
+
+                const startingPrice = bestPrice;
+                const hasActiveSale = product.variants.some(v => v.isOnSale);
+                const priceRange = `${bestPrice}`;
+
+                return {
+                    ...product,
+                    id: product._id,
+                    bestPrice,
+                    startingPrice,
+                    hasActiveSale,
+                    priceRange
+                };
+            });
+
+            return res.json({ products });
+        } catch (err) {
+            return res.status(500).json({ message: 'Failed to fetch products', error: err.message });
+        }
     }
 
     // Convert page and limit to numbers and validate
@@ -156,10 +187,36 @@ router.get('/', async (req, res) => {
         const totalPages = Math.ceil(totalProducts / limitNum);
 
         // Get paginated products
-        const products = await Product.find(query)
+        const rawProducts = await Product.find(query)
             .skip(skip)
             .limit(limitNum)
             .lean(); // Use lean() for better performance if you don't need Mongoose document methods
+
+        // Add all computed fields that frontend expects
+        const products = rawProducts.map(product => {
+            // Calculate bestPrice (lowest price from variants)
+            const bestPrice = Math.min(...product.variants.map(v =>
+                v.isOnSale && v.salePrice ? v.salePrice : v.price
+            ));
+
+            // Calculate startingPrice (same as bestPrice in this case)
+            const startingPrice = bestPrice;
+
+            // Check if any variant is on sale
+            const hasActiveSale = product.variants.some(v => v.isOnSale);
+
+            // Format priceRange
+            const priceRange = `${bestPrice}`;
+
+            return {
+                ...product,
+                id: product._id, // Add id field for frontend compatibility
+                bestPrice,
+                startingPrice,
+                hasActiveSale,
+                priceRange
+            };
+        });
 
         // Return paginated response with metadata
         res.json({
@@ -177,7 +234,6 @@ router.get('/', async (req, res) => {
         res.status(500).json({ message: 'Failed to fetch products', error: err.message });
     }
 });
-
 
 // Get single product
 router.get('/:id', async (req, res) => {
